@@ -1,6 +1,5 @@
 ## Hi there 👋
 
-<!--
 # Melika
 👋 Hi, I’m @Melika21
 👀 I’m interested in Programming
@@ -11,4 +10,3 @@
 😄 Pronouns: Melik
 ⚡ Fun fact: Just Keep Swimming :)
 🏠 Shiraz, Iran
--->
