@@ -1,9 +1,9 @@
 ## Hi there 👋
 
 - 👋 Hi, I’m Melika Sohrabi
-- 👀 I’m interested in Programming
-- 🌱 I’m currently learning Dart and Flutter
+- 👀 I’m interested in Programming and Artificial Intelligence
 - 👨🏻‍💻 I’m a Web Designer and Python Programmer
+- 🌱 I’m currently learning Dart and Flutter
 - 💬 I studied IT Enginnering in University
 - 📫 How to reach me: 📧 melikasohrabi5153@gmail.com
 - 😄 Pronouns: Melik
