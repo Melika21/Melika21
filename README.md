@@ -3,7 +3,7 @@
 - 👋 Hi, I’m Melika Sohrabi
 - 👀 I’m interested in Programming and Artificial Intelligence
 - 👨🏻‍💻 I’m a Web Designer and Python Programmer
-- 🌱 I’m currently learning Dart and Flutter
+- 🌱 I'd like to be a Front-End Developer
 - 💬 I studied IT Enginnering in University
 - 📫 How to reach me: 📧 melikasohrabi5153@gmail.com
 - 😄 Pronouns: Melik
