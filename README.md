@@ -10,7 +10,7 @@
 - 🎂 My birthday: 11/11/1996
 - 🏠 I live in Shiraz, Iran
 - ⚡ Fun fact: Just Keep Swimming :)
-- 🧩 My favourite entertainment is doing puzzles above 1000 pieces!
+- 🧩 My favorite entertainment is doing puzzles above 1000 pieces!
 - 🔭 Also, I love Astronomy, Kalimba, Eiffel Tower and PARIS :)
 <!---
 Melika21/Melika21 is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
