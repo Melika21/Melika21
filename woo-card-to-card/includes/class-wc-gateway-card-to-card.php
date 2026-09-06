@@ -46,6 +46,27 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 	}
 
 	/**
+	 * Check if the gateway is available for use.
+	 *
+	 * @return bool
+	 */
+	public function is_available() {
+		if ( 'yes' !== $this->enabled ) {
+			return false;
+		}
+
+		// Hide for free orders if configured.
+		if ( 'yes' === $this->get_option( 'hide_if_free' ) ) {
+			$cart_total = WC()->cart ? WC()->cart->get_total( 'edit' ) : 0;
+			if ( 0 === (float) $cart_total ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Enqueue front-end styles on the checkout page.
 	 */
 	public function enqueue_styles() {
