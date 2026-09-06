@@ -13,7 +13,131 @@
     line-height: 1.7;
 }
 
-/* Card info table */
+.woo-c2c-card-info {
+    background: #f7f9fb;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #2b6cb0;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 18px;
+}
+
+.woo-c2c-card-info-header {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2b6cb0;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
+}
+
+.woo-c2c-card-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.woo-c2c-card-table th {
+    text-align: right;
+    padding: 6px 12px 6px 0;
+    font-weight: 600;
+    color: #333;
+    white-space: nowrap;
+    width: 130px;
+}
+
+.woo-c2c-card-table td {
+    padding: 6px 0;
+    color: #1a202c;
+    font-size: 0.95em;
+}
+
+.woo-c2c-card-number,
+.woo-c2c-copy-target {
+    font-family: 'Courier New', monospace;
+    font-size: 1.1em !important;
+    font-weight: 700;
+    color: #2d3748 !important;
+    letter-spacing: 1px;
+}
+
+.woo-c2c-copy-btn {
+    margin-left: 8px;
+    font-size: 12px;
+    padding: 3px 8px;
+    background: #e2e8f0;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    color: #2d3748;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.woo-c2c-copy-btn:hover {
+    background: #2b6cb0;
+    color: #fff;
+    border-color: #2b6cb0;
+}
+
+.woo-c2c-copy-feedback {
+    font-size: 12px;
+    color: #2b6cb0;
+    font-weight: 600;
+    display: inline-block;
+    padding: 2px 6px;
+}
+
+/* Upload zone */
+.woo-c2c-upload-wrapper {
+    margin-top: 10px;
+}
+
+.woo-c2c-upload-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #2d3748;
+}
+
+.woo-c2c-file-input {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    border: 2px dashed #cbd5e0;
+    border-radius: 8px;
+    background: #f7f9fb;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.woo-c2c-file-input:hover {
+    border-color: #2b6cb0;
+    background: #ebf8ff;
+}
+
+.woo-c2c-upload-preview {
+    margin-top: 10px;
+}
+
+.woo-c2c-preview-img {
+    max-width: 100%;
+    max-height: 250px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    object-fit: contain;
+}
+
+.woo-c2c-file-name {
+    font-size: 12px;
+    color: #718096;
+    margin-top: 5px;
+}
+
+.woo-c2c-upload-hint {
+    font-size: 12px;
+    color: #a0aec0;
+    margin-top: 6px;
+}
+
+/* Admin meta box */
 .woo-c2c-card-info {
     background: #f7f9fb;
     border: 1px solid #e2e8f0;

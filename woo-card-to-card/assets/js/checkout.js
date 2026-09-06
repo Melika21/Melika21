@@ -1,35 +1,72 @@
 /**
- * Card-to-Card Checkout — Receipt Upload
- *
- * - Shows a live preview of the chosen receipt image.
- * - Forces a native (non-AJAX) form submission when the card-to-card gateway
- *   is selected and a receipt file is attached, because WooCommerce's AJAX
- *   checkout cannot transmit file inputs.
+ * Card-to-Card Checkout — Receipt Upload + Copy-to-Clipboard.
  *
  * @package Woo_Card_To_Card
  */
 (function ($) {
 	"use strict";
 
-	var MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB.
+	var MAX_FILE_SIZE = wooC2C.max_size_bytes || 5242880;
 	var ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 	$(function () {
-		var $input = $('#c2c_receipt_image');
+		// Copy-to-clipboard.
+		$(document).on('click', '.woo-c2c-copy-btn', function () {
+			var targetId = $(this).data('target');
+			var $target  = $('#' + targetId);
+			var text     = $target.text().trim();
+
+			if (!text) {
+				return;
+			}
+
+			if (navigator.clipboard && navigator.clipboard.writeText) {
+				navigator.clipboard.writeText(text).then(function () {
+					showCopyFeedback($(this));
+				}).catch(function () {
+					fallbackCopy(text, $(this));
+				});
+			} else {
+				fallbackCopy(text, $(this));
+			}
+		});
+
+		function fallbackCopy(text, $btn) {
+			var $textarea = $('<textarea style="position:absolute;left:-9999px;"></textarea>');
+			$textarea.val(text).appendTo('body');
+			$textarea[0].select();
+			try {
+				document.execCommand('copy');
+				showCopyFeedback($btn);
+			} catch (e) {
+				window.alert('کپی با خطا مواجه شد.');
+			}
+			$textarea.remove();
+		}
+
+		function showCopyFeedback($btn) {
+			var $orig = $btn.clone();
+			$btn.hide();
+			var $label = $('<span class="woo-c2c-copy-feedback">' + wooC2C.copy_feedback + '</span>');
+			$label.insertAfter($btn);
+			setTimeout(function () {
+				$label.fadeOut(800, function () { $label.remove(); });
+				$btn.show();
+			}, 1200);
+		}
+
+		// File input: preview + validation.
+		var $input   = $('#c2c_receipt_image');
 		var $preview = $('#woo-c2c-preview');
 
 		if (!$input.length) {
 			return;
 		}
 
-		// Live preview + client-side validation.
 		$input.on('change', function () {
 			$preview.empty();
-
 			var file = this.files[0];
-			if (!file) {
-				return;
-			}
+			if (!file) return;
 
 			if (ALLOWED_TYPES.indexOf(file.type) === -1) {
 				window.alert('فرمت فایل مجاز نیست. لطفاً فقط تصویر JPG، PNG یا WebP انتخاب کنید.');
@@ -38,7 +75,7 @@
 			}
 
 			if (file.size > MAX_FILE_SIZE) {
-				window.alert('حجم فایل نباید بیشتر از ۵ مگابایت باشد.');
+				window.alert('حجم فایل نباید بیشتر از ' + wooC2C.max_size_text + ' باشد.');
 				$input.val('');
 				return;
 			}
@@ -53,20 +90,22 @@
 			reader.readAsDataURL(file);
 		});
 
-		// WooCommerce checkout submits via AJAX by default, and AJAX cannot
-		// transmit files. Force a native POST when this gateway is selected.
-		$(document.body).on('checkout_place_order_card_to_card', function () {
-			var $form = $('form.checkout');
+		// WooCommerce AJAX checkout can't transmit files — force native POST.
+		$(document.body).on('checkout_place_order', function (e) {
+			if ($('.payment_method_card_to_card input[name="payment_method"]').is(':checked')) {
+				if (!$input.val()) {
+					window.alert('لطفاً تصویر رسید پرداخت را آپلود کنید.');
+					e.preventDefault();
+					return false;
+				}
 
-			if (!$input.val()) {
-				window.alert('لطفاً تصویر رسید پرداخت را آپلود کنید.');
+				var $form = $('form.checkout');
+				$form.attr('enctype', 'multipart/form-data');
+				$form.removeClass('processing');
+				$form.submit();
+				e.preventDefault();
 				return false;
 			}
-
-			$form.attr('enctype', 'multipart/form-data');
-			$form.removeClass('processing');
-			$form.submit();
-			return false;
 		});
 	});
 })(jQuery);
