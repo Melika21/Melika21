@@ -3,8 +3,8 @@
  * WooCommerce Card-to-Card Gateway.
  *
  * Provides a manual card-to-card (inter-bank) payment method for Iranian stores.
- * The customer sees the shop card details, transfers funds, and enters the
- * transaction code (RRN) on the checkout page.
+ * The customer sees the shop card details, transfers funds, uploads the payment
+ * receipt image, and the shop admin verifies it manually.
  *
  * @package Woo_Card_To_Card
  */
@@ -17,6 +17,13 @@ defined( 'ABSPATH' ) || exit;
 class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 
 	/**
+	 * Maximum allowed receipt file size in bytes (5 MB).
+	 *
+	 * @var int
+	 */
+	const MAX_FILE_SIZE = 5242880;
+
+	/**
 	 * Constructor.
 	 */
 	public function __construct() {
@@ -24,7 +31,7 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 		$this->icon               = '';
 		$this->has_fields         = true;
 		$this->method_title       = 'کارت به کارت';
-		$this->method_description = 'پرداخت دستی از طریق انتقال وجه کارت به کارت. مشتری پس از واریز کد پیگیری (RRN) را وارد می‌کند و مدیر فروشگاه تأیید می‌کند.';
+		$this->method_description = 'پرداخت دستی از طریق انتقال وجه کارت به کارت. مشتری پس از واریز، تصویر رسید پرداخت را آپلود می‌کند و مدیر فروشگاه آن را تأیید می‌کند.';
 
 		$this->init_form_fields();
 		$this->init_settings();
@@ -34,21 +41,31 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 		$this->enabled     = $this->get_option( 'enabled' );
 		$this->supports    = array( 'products' );
 
-		// Enqueue checkout styles.
-		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles' ) );
-
 		// Save admin settings.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
 
-		// Handle receipt image upload via AJAX.
-		add_action( 'wp_ajax_woo_c2c_upload_receipt', array( $this, 'ajax_upload_receipt' ) );
+		// Allow file uploads through the checkout form.
+		add_action( 'woocommerce_after_checkout_form', array( $this, 'output_multipart_fix' ) );
 
-		// Enqueue checkout scripts.
-		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+		// Enqueue checkout styles and scripts.
+		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_checkout_assets' ) );
 
 		// Admin order meta box for reviewing transactions.
 		add_action( 'woocommerce_admin_order_data_after_billing_address', array( $this, 'admin_order_meta_box' ) );
-		add_action( 'woocommerce_process_shop_order_meta', array( $this, 'save_admin_order_meta' ) );
+	}
+
+	/**
+	 * Force multipart/form-data encoding on the checkout form so file inputs work.
+	 *
+	 * @param string $checkout_title Checkout shortcode output (unused).
+	 */
+	public function output_multipart_fix( $checkout_title ) {
+		unset( $checkout_title );
+		echo "<script>
+			jQuery(function($){
+				$('form.checkout').attr('enctype','multipart/form-data');
+			});
+		</script>";
 	}
 
 	/**
@@ -63,8 +80,8 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 
 		// Hide for free orders if configured.
 		if ( 'yes' === $this->get_option( 'hide_if_free' ) ) {
-			$cart_total = WC()->cart ? WC()->cart->get_total( 'edit' ) : 0;
-			if ( 0 === (float) $cart_total ) {
+			$cart_total = WC()->cart ? (float) WC()->cart->get_total( 'edit' ) : 0;
+			if ( $cart_total <= 0 ) {
 				return false;
 			}
 		}
@@ -75,7 +92,7 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 	/**
 	 * Enqueue styles and scripts on the checkout page.
 	 */
-	public function enqueue_scripts() {
+	public function enqueue_checkout_assets() {
 		if ( ! is_checkout() ) {
 			return;
 		}
@@ -94,13 +111,6 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 			WOO_C2C_VERSION,
 			true
 		);
-
-		wp_localize_script( 'woo-c2c-checkout', 'wooC2C', array(
-			'ajax_url' => admin_url( 'admin-ajax.php' ),
-			'nonce'    => wp_create_nonce( 'woo_c2c_receipt_upload' ),
-			'max_size' => 5 * 1024 * 1024, // 5 MB.
-			'max_size_text' => '۵ مگابایت',
-		) );
 	}
 
 	/**
@@ -108,53 +118,53 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 	 */
 	public function init_form_fields() {
 		$this->form_fields = array(
-			'enabled'       => array(
+			'enabled'      => array(
 				'title'   => 'فعال‌سازی / غیرفعال‌سازی',
 				'type'    => 'checkbox',
 				'label'   => 'فعال‌سازی درگاه کارت به کارت',
 				'default' => 'yes',
 			),
-			'title'         => array(
+			'title'        => array(
 				'title'       => 'عنوان',
 				'type'        => 'text',
 				'description' => 'عنوانی که مشتری در صفحه تسویه حساب می‌بیند.',
 				'default'     => 'پرداخت کارت به کارت',
 				'desc_tip'    => true,
 			),
-			'description'   => array(
+			'description'  => array(
 				'title'       => 'توضیحات',
 				'type'        => 'textarea',
 				'description' => 'توضیحاتی که مشتری در صفحه تسویه حساب می‌بیند.',
 				'default'     => 'پرداخت از طریق انتقال وجه کارت به کارت',
 			),
-			'card_number'   => array(
+			'card_number'  => array(
 				'title'       => 'شماره کارت',
 				'type'        => 'text',
 				'description' => 'شماره کارت مقصد (بدون خط تیره).',
 				'default'     => '',
 				'desc_tip'    => true,
 			),
-			'card_holder'   => array(
+			'card_holder'  => array(
 				'title'       => 'نام صاحب کارت',
 				'type'        => 'text',
 				'description' => 'نام و نام خانوادگی صاحب حساب.',
 				'default'     => '',
 				'desc_tip'    => true,
 			),
-			'bank_name'     => array(
+			'bank_name'    => array(
 				'title'       => 'نام بانک',
 				'type'        => 'text',
 				'description' => 'مثال: ملت، سامان، پاسارگاد و غیره.',
 				'default'     => '',
 				'desc_tip'    => true,
 			),
-			'instructions'  => array(
+			'instructions' => array(
 				'title'       => 'راهنمای پرداخت',
 				'type'        => 'textarea',
 				'description' => 'متنی که بالای فرم آپلود رسید نمایش داده می‌شود.',
 				'default'     => 'لطفاً مبلغ سفارش را به شماره کارت زیر واریز کنید و عکس رسید پرداخت را در فرم زیر آپلود نمایید.',
 			),
-			'hide_if_free'  => array(
+			'hide_if_free' => array(
 				'title'   => 'مخفی کردن در سفارش رایگان',
 				'type'    => 'checkbox',
 				'label'   => 'اگر سفارش رایگان باشد این روش پرداخت نمایش داده نشود.',
@@ -174,7 +184,7 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 
 		// Format card number for display: xxxx-xxxx-xxxx-xxxx.
 		$display_number = $card_number;
-		if ( $card_number && strlen( $card_number ) === 16 ) {
+		if ( $card_number && 16 === strlen( $card_number ) ) {
 			$display_number = implode( '-', str_split( $card_number, 4 ) );
 		}
 
@@ -213,12 +223,12 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 
 		echo '<p class="woo-c2c-form-label">پس از واریز، تصویر رسید پرداخت را آپلود کنید:</p>';
 
-		// File upload field (custom, not woocommerce_form_field — WC doesn't support file type natively).
+		// File upload field (custom, WC doesn't support file inputs natively).
 		echo '<div class="woo-c2c-upload-wrapper">';
 		echo '<label for="c2c_receipt_image" class="woo-c2c-upload-label">تصویر رسید (اجباری) *</label>';
-		echo '<input type="file" id="c2c_receipt_image" name="c2c_receipt_image" accept="image/*" class="woo-c2c-file-input" />' ;
+		echo '<input type="file" id="c2c_receipt_image" name="c2c_receipt_image" accept="image/jpeg,image/png,image/webp" class="woo-c2c-file-input" />';
 		echo '<div class="woo-c2c-upload-preview" id="woo-c2c-preview"></div>';
-		echo '<p class="woo-c2c-upload-hint">فرمت‌های مجاز: JPG, PNG, WebP — حداکثر حجم: ۵ مگابایت</p>';
+		echo '<p class="woo-c2c-upload-hint">فرمت‌های مجاز: JPG، PNG، WebP — حداکثر حجم: ۵ مگابایت</p>';
 		echo '</div>';
 
 		echo '</div>';
@@ -228,13 +238,19 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 	 * Validate payment fields on checkout.
 	 */
 	public function validate_fields() {
-		// Validate receipt image upload.
-		if ( empty( $_FILES['c2c_receipt_image'] ) || 0 !== $_FILES['c2c_receipt_image']['error'] ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by WooCommerce checkout.
+		if ( empty( $_FILES['c2c_receipt_image']['name'] ) ) {
 			wc_add_notice( 'لطفاً تصویر رسید پرداخت را آپلود کنید.', 'error' );
 			return false;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$file = $_FILES['c2c_receipt_image'];
+
+		if ( UPLOAD_ERR_OK !== (int) $file['error'] ) {
+			wc_add_notice( 'خطا در آپلود فایل. لطفاً دوباره تلاش کنید.', 'error' );
+			return false;
+		}
 
 		// Check file type.
 		$allowed_types = array( 'image/jpeg', 'image/png', 'image/webp' );
@@ -244,13 +260,13 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 			'webp'     => 'image/webp',
 		) );
 
-		if ( ! in_array( $file_type['type'], $allowed_types, true ) ) {
+		if ( empty( $file_type['type'] ) || ! in_array( $file_type['type'], $allowed_types, true ) ) {
 			wc_add_notice( 'فرمت فایل مجاز نیست. لطفاً فقط تصویر JPG، PNG یا WebP آپلود کنید.', 'error' );
 			return false;
 		}
 
-		// Check file size (max 5 MB).
-		if ( $file['size'] > 5 * 1024 * 1024 ) {
+		// Check file size.
+		if ( (int) $file['size'] > self::MAX_FILE_SIZE ) {
 			wc_add_notice( 'حجم فایل نباید بیشتر از ۵ مگابایت باشد.', 'error' );
 			return false;
 		}
@@ -259,7 +275,7 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 	}
 
 	/**
-	 * Process the payment — create order and mark as on-hold.
+	 * Process the payment — save the receipt and mark the order on-hold.
 	 *
 	 * @param int $order_id WooCommerce order ID.
 	 */
@@ -273,14 +289,16 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 		$order->update_meta_data( '_c2c_status', 'pending_review' );
 
 		// Add order note.
-		$note = 'رسید پرداخت آپلود شده.';
-		if ( $attachment_id ) {
-			$note .= ' (شناسه پیوست: ' . $attachment_id . ')';
-		}
+		$note = $attachment_id
+			? 'رسید پرداخت آپلود شد. (شناسه پیوست: ' . (int) $attachment_id . ')'
+			: 'سفارش ثبت شد اما رسید پرداخت آپلود نشد.';
+
 		$order->add_order_note( $note );
 
 		$order->set_status( 'on-hold' );
 		$order->save();
+
+		WC()->cart->empty_cart();
 
 		return array(
 			'result'   => 'success',
@@ -295,7 +313,15 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 	 * @return int Attachment ID or 0 on failure.
 	 */
 	private function handle_receipt_upload( $order_id ) {
-		if ( empty( $_FILES['c2c_receipt_image'] ) || 0 !== $_FILES['c2c_receipt_image']['error'] ) {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by WooCommerce checkout.
+		if ( empty( $_FILES['c2c_receipt_image']['name'] ) ) {
+			return 0;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$file = $_FILES['c2c_receipt_image'];
+
+		if ( UPLOAD_ERR_OK !== (int) $file['error'] ) {
 			return 0;
 		}
 
@@ -303,57 +329,49 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/media.php';
 
-		$file = $_FILES['c2c_receipt_image'];
-
-		// Determine file extension from MIME type.
-		$extension_map = array(
-			'image/jpeg' => 'jpg',
-			'image/png'  => 'png',
-			'image/webp' => 'webp',
+		// Move the uploaded file into the uploads directory via WP API.
+		$overrides = array(
+			'test_form' => false,
+			'mimes'     => array(
+				'jpg|jpeg' => 'image/jpeg',
+				'png'      => 'image/png',
+				'webp'     => 'image/webp',
+			),
 		);
 
-		$mime_type = wp_check_filetype( $file['name'], array(
-			'jpg|jpeg' => 'image/jpeg',
-			'png'      => 'image/png',
-			'webp'     => 'image/webp',
-		) );
+		$move_result = wp_handle_upload( $file, $overrides );
 
-		$ext = isset( $extension_map[ $mime_type['type'] ] ) ? $extension_map[ $mime_type['type'] ] : 'jpg';
-
-		// Build a unique filename.
-		$upload_dir = wp_upload_dir();
-		$dir        = $upload_dir['path'];
-		$filename   = 'receipt-order-' . $order_id . '-' . time() . '.' . $ext;
-		$file_path  = $dir . '/' . $filename;
-
-		// Move the uploaded file.
-		if ( ! move_uploaded_file( $file['tmp_name'], $file_path ) ) {
+		if ( ! is_array( $move_result ) || isset( $move_result['error'] ) ) {
 			return 0;
 		}
 
-		// Generate attachment metadata.
-		$wp_filetype = wp_check_filetype( $file_path, null );
-		$attachment  = array(
-			'post_mime_type' => $wp_filetype['type'],
-			'post_title'     => sanitize_file_name( $filename ),
+		$file_path = $move_result['file'];
+		$file_url  = $move_result['url'];
+
+		// Create the attachment.
+		$attachment = array(
+			'post_mime_type' => $move_result['type'],
+			'post_title'     => sanitize_file_name( basename( $file_path ) ),
 			'post_content'   => '',
 			'post_status'    => 'inherit',
+			'guid'           => $file_url,
 		);
 
-		$attachment_id = wp_insert_attachment( $attachment, $file_path );
+		$attachment_id = wp_insert_attachment( $attachment, $file_path, $order_id );
 
-		if ( is_wp_error( $attachment_id ) ) {
+		if ( is_wp_error( $attachment_id ) || ! $attachment_id ) {
 			return 0;
 		}
 
+		// Generate and store attachment metadata (image sizes etc.).
 		$metadata = wp_generate_attachment_metadata( $attachment_id, $file_path );
 		wp_update_attachment_metadata( $attachment_id, $metadata );
 
-		return $attachment_id;
+		return (int) $attachment_id;
 	}
 
 	/**
-	 * Admin order meta box — shows transaction details and approve/reject buttons.
+	 * Admin order meta box — shows the uploaded receipt image.
 	 *
 	 * @param WC_Order $order The order object.
 	 */
@@ -369,11 +387,11 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 		echo '<h3>اطلاعات پرداخت کارت به کارت</h3>';
 
 		if ( $attachment_id ) {
-			$img_url = wp_get_attachment_url( $attachment_id );
+			$img_url = wp_get_attachment_url( (int) $attachment_id );
 			if ( $img_url ) {
 				echo '<p><strong>رسید پرداخت:</strong></p>';
 				echo '<a href="' . esc_url( $img_url ) . '" target="_blank">';
-				echo '<img src="' . esc_url( $img_url ) . '" style="max-width:300px;max-height:400px;border:1px solid #ddd;border-radius:4px;" />'; 
+				echo '<img src="' . esc_url( $img_url ) . '" style="max-width:300px;max-height:400px;border:1px solid #ddd;border-radius:4px;" />';
 				echo '</a>';
 				echo '<p style="font-size:12px;color:#888;margin-top:5px;">برای مشاهده در اندازه کامل روی تصویر کلیک کنید.</p>';
 			} else {
@@ -394,27 +412,4 @@ class WC_Gateway_Card_To_Card extends WC_Payment_Gateway {
 
 		echo '</div>';
 	}
-
-	/**
-	 * Save meta from admin order edit.
-	 *
-	 * @param int $order_id The order ID.
-	 */
-	public function save_admin_order_meta( $order_id ) {
-		// Placeholder for future admin transaction management.
-	}
-
-	/**
-	 * AJAX handler for receipt image upload.
-	 */
-	public function ajax_upload_receipt() {
-		check_ajax_referer( 'woo_c2c_receipt_upload', 'nonce' );
-
-		if ( ! current_user_can( 'edit_shop_orders' ) ) {
-			echo wp_send_json_error( array( 'message' => 'عدم دسترسی.' ) );
-		}
-
-		echo wp_send_json_success();
-	}
-
 }
