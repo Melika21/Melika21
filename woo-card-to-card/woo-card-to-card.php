@@ -2,7 +2,7 @@
 /**
  * Plugin Name: درگاه پرداخت کارت به کارت (WooCommerce)
  * Plugin URI:  https://github.com/Melika21/woo-card-to-card
- * Description: افزونه درگاه پرداخت کارت به کارت برای ووکامرس — مشتریان شماره کارت و نام صاحب حساب را می‌بینند و پس از واریز، کد پیگیری را وارد می‌کنند.
+ * Description: افزونه پرداخت کارت به کارت برای ووکامرس — مدیر شماره کارت و شبا را تنظیم می‌کند، مشتری می‌تواند آن‌ها را کپی کند، رسید پرداخت را آپلود کند. سفارش پس از تایید مدیر به «در حال انجام» تغییر می‌کند.
  * Version:     1.0.0
  * Author:      Melika Sohrabi
  * Author URI:  https://github.com/Melika21
@@ -24,7 +24,7 @@ define( 'WOO_C2C_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WOO_C2C_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 /**
- * Check WooCommerce dependency.
+ * Verify WooCommerce is active.
  */
 function woo_c2c_check_woocommerce() {
 	if ( ! class_exists( 'WooCommerce' ) ) {
@@ -35,11 +35,15 @@ function woo_c2c_check_woocommerce() {
 }
 
 function woo_c2c_missing_wc_notice() {
-	echo '<div class="error"><p><strong>افزونه کارت به کارت</strong> برای کارکرد نیاز به ووکامرس دارد.</p></div>';
+	printf(
+		'<div class="error"><p><strong>%s</strong> %s</p></div>',
+		esc_html__( 'افزونه کارت به کارت', 'woo-card-to-card' ),
+		esc_html__( 'برای کارکرد نیاز به ووکامرس دارد.', 'woo-card-to-card' )
+	);
 }
 
 /**
- * Initialise after WooCommerce is loaded.
+ * Boot plugin after WooCommerce.
  */
 add_action( 'plugins_loaded', 'woo_c2c_init', 11 );
 
@@ -49,8 +53,12 @@ function woo_c2c_init() {
 	}
 
 	require_once WOO_C2C_PLUGIN_DIR . 'includes/class-wc-gateway-card-to-card.php';
+	require_once WOO_C2C_PLUGIN_DIR . 'includes/class-wc-admin-card-to-card.php';
+	require_once WOO_C2C_PLUGIN_DIR . 'includes/class-wc-card-to-card-upload-handler.php';
 
 	add_filter( 'woocommerce_payment_gateways', 'woo_c2c_add_gateway' );
+
+	new WC_Admin_Card_To_Card();
 }
 
 function woo_c2c_add_gateway( $gateways ) {
@@ -59,31 +67,34 @@ function woo_c2c_add_gateway( $gateways ) {
 }
 
 /**
- * Quick-settings link on Plugins page.
+ * Settings link on the Plugins page.
  */
 add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'woo_c2c_action_links' );
 
 function woo_c2c_action_links( $links ) {
 	$url  = admin_url( 'admin.php?page=wc-settings&tab=checkout&section=card_to_card' );
-	$link = '<a href="' . esc_url( $url ) . '">تنظیمات</a>';
+	$link = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'تنظیمات', 'woo-card-to-card' ) . '</a>';
 	array_unshift( $links, $link );
 	return $links;
 }
 
 /**
- * Activation — seed default options.
+ * Activation defaults.
  */
 register_activation_hook( __FILE__, 'woo_c2c_activate' );
 
 function woo_c2c_activate() {
 	$defaults = array(
-		'woo_c2c_title'       => 'پرداخت کارت به کارت',
-		'woo_c2c_description' => 'پرداخت از طریق انتقال وجه کارت به کارت',
+		'woo_c2c_title'       => __( 'پرداخت کارت به کارت', 'woo-card-to-card' ),
+		'woo_c2c_description' => __( 'پرداخت از طریق انتقال وجه کارت به کارت', 'woo-card-to-card' ),
 		'woo_c2c_card_number' => '',
 		'woo_c2c_card_holder' => '',
 		'woo_c2c_bank_name'   => '',
-		'woo_c2c_instructions' => 'لطفاً مبلغ سفارش را به شماره کارت زیر واریز کنید و کد پیگیری را در فرم زیر وارد نمایید.',
+		'woo_c2c_shaba_number' => '',
+		'woo_c2c_instructions' => __( 'لطفاً مبلغ سفارش را به شماره کارت زیر واریز کنید و عکس رسید پرداخت را در فرم زیر آپلود نمایید.', 'woo-card-to-card' ),
+		'woo_c2c_hide_if_free' => 'yes',
 	);
+
 	foreach ( $defaults as $key => $value ) {
 		if ( ! get_option( $key ) ) {
 			update_option( $key, $value );
@@ -92,7 +103,7 @@ function woo_c2c_activate() {
 }
 
 /**
- * Load text domain for translations.
+ * Load text domain.
  */
 add_action( 'init', 'woo_c2c_load_textdomain' );
 

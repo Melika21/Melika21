@@ -1,0 +1,6 @@
+<?php
+/**
+ * Placeholder text domain stub for woo-card-to-card.
+ *
+ * Add .po/.mo translations here if needed.
+ */
